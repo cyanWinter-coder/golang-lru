@@ -31,6 +31,58 @@ func main() {
 }
 ```
 
+Loading cache example
+=====================
+
+`LoadingCache` is a cache view with an attached loader. Concurrent misses
+for the same key collapse into a single loader call whose result is shared
+by every caller (including a shared error); waiters may cancel their own
+context without cancelling the shared load. It supports stale-while-
+revalidate with a hard absolute expiry, assigns each successful write a
+monotonic version so late loader results never overwrite newer values, and
+guarantees each eviction callback fires at most once. The underlying
+`Cache` remains independently usable.
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/golang-lru/v2"
+)
+
+func main() {
+	lc, err := lru.NewLoadingCache(lru.LoadingCacheConfig[string, string]{
+		Size: 128,
+		Loader: func(ctx context.Context, key string) (string, error) {
+			// Exactly one of these runs per concurrent miss.
+			return fetchFromBackend(ctx, key)
+		},
+		OnEvicted:     func(key, value string) { fmt.Println("evicted", key) },
+		TTL:           time.Minute,      // hard absolute expiry
+		RefreshWindow: 10 * time.Second, // serve stale while refreshing
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer lc.Close()
+
+	// Concurrent callers for "user:42" share one loader invocation.
+	value, err := lc.GetOrLoad(context.Background(), "user:42")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(value)
+}
+
+func fetchFromBackend(_ context.Context, key string) (string, error) {
+	return "value-for-" + key, nil
+}
+```
+
 Expirable LRU cache example
 ===========================
 

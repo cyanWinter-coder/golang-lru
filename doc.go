@@ -6,6 +6,10 @@
 // Cache is a simple LRU cache. It is based on the LRU implementation in
 // groupcache: https://github.com/golang/groupcache/tree/master/lru
 //
+// LoadingCache wraps a Cache with a loader so that concurrent misses for a
+// key trigger a single shared load. It adds context aware waits,
+// stale-while-revalidate with absolute expiry and monotonic versioning.
+//
 // TwoQueueCache tracks frequently used and recently used entries separately.
 // This avoids a burst of accesses from taking out frequently used entries, at
 // the cost of about 2x computational overhead and some extra bookkeeping.
